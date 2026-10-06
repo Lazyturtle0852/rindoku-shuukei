@@ -139,8 +139,7 @@ function updateSubmissionStatus() {
       rowVals[c] = next;
     });
   });
-  range.setDataValidation(markValidation_());
-  range.setValues(values);
+  changed -= writeValues_(range, values, warnings);
 
   const nowNote = CONFIG.NOW ? `・基準日時 ${Utilities.formatDate(now, 'Asia/Tokyo', 'M/d HH:mm')} で固定中` : '';
   showResult_(`提出状況を更新しました（変更 ${changed} セル${nowNote}）`, warnings);
@@ -224,8 +223,7 @@ function syncRosterAndPresenters() {
     if (current !== M.PRESENTER) marked++;
     values[p][c] = M.PRESENTER;
   });
-  range.setDataValidation(markValidation_());
-  range.setValues(values);
+  marked -= writeValues_(range, values, warnings);
 
   const head = toAdd.length ? `名簿に ${toAdd.length} 人追加し、` : '';
   showResult_(`${head}「発表」を ${marked} セル新たに書き込みました`, warnings);
@@ -290,15 +288,39 @@ function buildRosterIndex_(roster, warnings) {
 }
 
 /**
- * マスの入力規則。記号を足したときに古い規則（「-」がない等）で書き込みが途中で止まらないよう、毎回かけ直す。
- * 「免除」「欠席」など手書きの例外も入れられるよう、規則外の値は拒否せず警告表示にとどめる。
+ * 値だけを書き込む。書式・入力規則・プルダウンの色には触れない。
+ * 入力規則が「拒否」設定で、書こうとした記号がリストにないマスは元の値のまま残し、記号ごとに警告へまとめる。
+ * 戻り値は書き込めなかったマスの数。
  */
-function markValidation_() {
-  const M = CONFIG.MARK;
-  return SpreadsheetApp.newDataValidation()
-    .requireValueInList([M.ON_TIME, M.LATE, M.MISSING, M.NOT_YET, M.PRESENTER], true)
-    .setAllowInvalid(true)
-    .build();
+function writeValues_(range, values, warnings) {
+  const before = range.getValues();
+  const rules = range.getDataValidations();
+  const blocked = {};
+  values.forEach((row, i) => row.forEach((v, j) => {
+    if (v === before[i][j] || v === '') return;
+    const rule = rules[i][j];
+    if (!rule || rule.getAllowInvalid()) return;
+    if (rule.getCriteriaType() !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return;
+    if (rule.getCriteriaValues()[0].map(String).includes(String(v))) return;
+    if (!blocked[v]) blocked[v] = [];
+    blocked[v].push(a1_(range.getRow() + i, range.getColumn() + j));
+    row[j] = before[i][j];
+  }));
+
+  try {
+    range.setValues(values);
+  } catch (e) {
+    warnings.push(`書き込みに失敗しました: ${e.message}`);
+  }
+
+  let n = 0;
+  Object.keys(blocked).forEach(mark => {
+    const cells = blocked[mark];
+    n += cells.length;
+    const where = cells.slice(0, 5).join(', ') + (cells.length > 5 ? ' ほか' : '');
+    warnings.push(`入力規則のリストに「${mark}」がないため、${cells.length} マス（${where}）を書き換えられませんでした。「データ › データの入力規則」でリストに「${mark}」を足してください`);
+  });
+  return n;
 }
 
 /** 全角/半角をそろえ（NFKC）、空白をすべて除く */
