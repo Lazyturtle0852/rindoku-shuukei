@@ -139,6 +139,7 @@ function updateSubmissionStatus() {
       rowVals[c] = next;
     });
   });
+  range.setDataValidation(markValidation_());
   range.setValues(values);
 
   const nowNote = CONFIG.NOW ? `・基準日時 ${Utilities.formatDate(now, 'Asia/Tokyo', 'M/d HH:mm')} で固定中` : '';
@@ -223,6 +224,7 @@ function syncRosterAndPresenters() {
     if (current !== M.PRESENTER) marked++;
     values[p][c] = M.PRESENTER;
   });
+  range.setDataValidation(markValidation_());
   range.setValues(values);
 
   const head = toAdd.length ? `名簿に ${toAdd.length} 人追加し、` : '';
@@ -285,6 +287,18 @@ function buildRosterIndex_(roster, warnings) {
     else index[n] = i;
   });
   return index;
+}
+
+/**
+ * マスの入力規則。記号を足したときに古い規則（「無」がない等）で書き込みが途中で止まらないよう、毎回かけ直す。
+ * 「免除」「欠席」など手書きの例外も入れられるよう、規則外の値は拒否せず警告表示にとどめる。
+ */
+function markValidation_() {
+  const M = CONFIG.MARK;
+  return SpreadsheetApp.newDataValidation()
+    .requireValueInList([M.ON_TIME, M.LATE, M.MISSING, M.NOT_YET, M.PRESENTER], true)
+    .setAllowInvalid(true)
+    .build();
 }
 
 /** 全角/半角をそろえ（NFKC）、空白をすべて除く */
