@@ -97,14 +97,14 @@
     <p>輪読事前課題フォームの提出状況を、スプレッドシートのメニューから一回で集計する</p>
   </header>
 
-  <p class="lead">Google フォームの回答がたまる <code>フォームの回答 1</code> シートを読み、<code>集計</code> シートの「人 × 輪読回」のマスを <span class="mark m-ok">◯</span> <span class="mark m-late">遅延</span> <span class="mark m-miss">未</span> <span class="mark m-none">無</span> で埋めます。自動では動かず、押したときだけ集計します。</p>
+  <p class="lead">Google フォームの回答がたまる <code>フォームの回答 1</code> シートを読み、<code>集計</code> シートの「人 × 輪読回」のマスを <span class="mark m-ok">◯</span> <span class="mark m-late">遅延</span> <span class="mark m-miss">未</span> <span class="mark m-none">-</span> で埋めます。自動では動かず、押したときだけ集計します。</p>
 
   <h2>メニュー</h2>
   <p>スプレッドシートを開くと、上部に「輪読集計」メニューが出ます。</p>
   <div class="menu">
     <div class="card">
       <h3>提出状況を更新</h3>
-      <p>フォームの回答を読み、各マスを ◯ / 遅延 / 未 / 無 にする。毎週使うのはこれ。</p>
+      <p>フォームの回答を読み、各マスを ◯ / 遅延 / 未 / - にする。毎週使うのはこれ。</p>
     </div>
     <div class="card">
       <h3>名簿と発表者を反映</h3>
@@ -130,7 +130,7 @@
       <tr><td><span class="mark m-ok">◯</span></td><td>期限までに提出がある（18:00:00 ちょうどは期限内）</td></tr>
       <tr><td><span class="mark m-late">遅延</span></td><td>提出はあるが、最初の提出が期限を過ぎている</td></tr>
       <tr><td><span class="mark m-miss">未</span></td><td>期限を過ぎても提出がない</td></tr>
-      <tr><td><span class="mark m-none">無</span></td><td>まだ期限前で、提出もない（期限前に出していれば ◯）</td></tr>
+      <tr><td><span class="mark m-none">-</span></td><td>まだ期限前で、提出もない（期限前に出していれば ◯）</td></tr>
       <tr><td><span class="mark m-present">発表</span></td><td>その回の発表者。提出不要なので、スクリプトは書き換えない</td></tr>
     </tbody>
   </table>
@@ -144,7 +144,7 @@
   </ul>
 
   <div class="callout">
-    実行するたびに全部計算し直すので、提出のないマスに手で ◯ を入れても次の実行で「未」か「無」に戻ります。残したい例外は「免除」「欠席」のように別の言葉で書いてください。そのマスはそのまま残り、警告に出ます。
+    実行するたびに全部計算し直すので、提出のないマスに手で ◯ を入れても次の実行で「未」か「-」に戻ります。残したい例外は「免除」「欠席」のように別の言葉で書いてください。そのマスはそのまま残り、警告に出ます。
   </div>
 
   <h2>警告に出るもの</h2>
@@ -154,7 +154,7 @@
     <tbody>
       <tr><td>名前が名簿にない</td><td>フォームでの名前の書き間違い、名簿への追加漏れ。名簿の表記に合わせて回答シートの名前を直す</td></tr>
       <tr><td>輪読回が読めない・見出しにない</td><td>回答の「輪読回」が空、または集計の見出しにない日付</td></tr>
-      <tr><td>想定外の値を残した</td><td>マスに ◯ / 遅延 / 未 / 無 / 発表 以外が入っている。意図したものならそのままでよい</td></tr>
+      <tr><td>想定外の値を残した</td><td>マスに ◯ / 遅延 / 未 / - / 発表 以外が入っている。意図したものならそのままでよい</td></tr>
       <tr><td>名簿の重複</td><td>同じ人が A 列に二度いる</td></tr>
       <tr><td>見出しの日付が前の回より前</td><td>年の入れ間違い（1月の回が前年になっているなど）。期限の判定がずれるので直す</td></tr>
     </tbody>
