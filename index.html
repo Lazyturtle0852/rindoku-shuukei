@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>輪読集計スクリプト</title>
+<meta name="description" content="輪読事前課題フォームの提出状況を、Google スプレッドシート上でボタン一つで集計する Apps Script の使い方。">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #1f2328;
+    --muted: #5d6470;
+    --line: #e4e1da;
+    --accent: #2f6f5e;
+    --accent-soft: #e6f0ec;
+    --ok: #2f6f5e;
+    --late: #b45309;
+    --none: #8a8f98;
+    --present: #4b5fa8;
+    --code-bg: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a;
+      --surface: #1d2024;
+      --text: #e7e9ec;
+      --muted: #9aa1ab;
+      --line: #2e3238;
+      --accent: #7cc4ad;
+      --accent-soft: #1f302b;
+      --ok: #7cc4ad;
+      --late: #f0a35a;
+      --none: #8a919b;
+      --present: #9fb0f0;
+      --code-bg: #23272c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --surface: #1d2024; --text: #e7e9ec; --muted: #9aa1ab; --line: #2e3238;
+    --accent: #7cc4ad; --accent-soft: #1f302b; --ok: #7cc4ad; --late: #f0a35a; --none: #8a919b;
+    --present: #9fb0f0; --code-bg: #23272c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.8;
+    font-size: 16px;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 80px; }
+  header p { color: var(--muted); margin: 4px 0 0; }
+  h1 { font-size: 1.9rem; line-height: 1.3; margin: 0; letter-spacing: .01em; }
+  h2 { font-size: 1.25rem; margin: 56px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.02rem; margin: 28px 0 8px; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  ol, ul { padding-left: 1.4em; }
+  li { margin: 4px 0; }
+  .lead { font-size: 1.05rem; margin-top: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 16px 0; }
+  .menu { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  .menu .card { margin: 0; }
+  .menu h3 { margin: 0 0 4px; }
+  .menu p { margin: 0; color: var(--muted); font-size: .94rem; }
+  @media (max-width: 560px) { .menu { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .85rem; }
+  .mark { display: inline-block; min-width: 3em; text-align: center; padding: 0 8px; border-radius: 999px; font-weight: 600; font-size: .9rem; border: 1px solid currentColor; }
+  .m-ok { color: var(--ok); } .m-late { color: var(--late); } .m-none { color: var(--none); } .m-present { color: var(--present); }
+  .timeline { position: relative; margin: 20px 0 8px; padding: 34px 0 0; }
+  .bar { height: 10px; border-radius: 5px; display: flex; overflow: hidden; }
+  .bar .ok { background: var(--ok); flex: 1.4; }
+  .bar .late { background: var(--late); flex: 1; }
+  .tick { position: absolute; top: 0; font-size: .8rem; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+  .tick::after { content: ""; position: absolute; left: 50%; top: 24px; height: 18px; border-left: 1px dashed var(--muted); }
+  .tick.start { transform: none; } .tick.start::after { left: 0; }
+  .tick.end { transform: translateX(-100%); } .tick.end::after { left: 100%; }
+  .legend { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-top: 6px; }
+  .note { color: var(--muted); font-size: .92rem; }
+  .callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .codebox { position: relative; }
+  .codebox pre { background: var(--code-bg); border-radius: 10px; padding: 14px; overflow: auto; max-height: 360px; font-size: .8rem; line-height: 1.55; margin: 0; }
+  .codebox button { position: absolute; top: 10px; right: 10px; background: var(--accent); color: var(--bg); border: 0; border-radius: 6px; padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer; }
+  footer { margin-top: 64px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>輪読集計スクリプト</h1>
+    <p>輪読事前課題フォームの提出状況を、スプレッドシートのメニューから一回で集計する</p>
+  </header>
+
+  <p class="lead">Google フォームの回答がたまる <code>フォームの回答 1</code> シートを読み、<code>集計</code> シートの「人 × 輪読回」のマスを <span class="mark m-ok">◯</span> <span class="mark m-late">遅延</span> <span class="mark m-none">未</span> で埋めます。自動では動かず、押したときだけ集計します。</p>
+
+  <h2>メニュー</h2>
+  <p>スプレッドシートを開くと、上部に「輪読集計」メニューが出ます。</p>
+  <div class="menu">
+    <div class="card">
+      <h3>提出状況を更新</h3>
+      <p>フォームの回答を読み、各マスを ◯ / 遅延 / 未 にする。毎週使うのはこれ。</p>
+    </div>
+    <div class="card">
+      <h3>名簿と発表者を反映</h3>
+      <p><code>輪読スケジュール</code> の発表者のマスを「発表」にする。名簿にいない人は末尾に行を足す。学期はじめに一度。</p>
+    </div>
+  </div>
+  <p class="note">どちらも最後にダイアログが出て、気になる点があれば警告として一覧で表示します。</p>
+
+  <h2>判定のしかた</h2>
+  <p>期限は研究会の前日 18:00（日本時間）です。研究会の日付は <code>集計</code> の1行目の見出しから読みます。</p>
+
+  <div class="timeline" aria-label="10/13 の回の例">
+    <span class="tick start" style="left:0%">受付</span>
+    <span class="tick" style="left:58.3%">10/12 18:00 期限</span>
+    <span class="tick end" style="left:100%">10/13 研究会</span>
+    <div class="bar"><span class="ok"></span><span class="late"></span></div>
+    <div class="legend"><span>この間に最初の提出 → ◯</span><span>期限後 → 遅延</span></div>
+  </div>
+
+  <table>
+    <thead><tr><th>結果</th><th>条件</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mark m-ok">◯</span></td><td>期限までに提出がある（18:00:00 ちょうどは期限内）</td></tr>
+      <tr><td><span class="mark m-late">遅延</span></td><td>提出はあるが、最初の提出が期限を過ぎている</td></tr>
+      <tr><td><span class="mark m-none">未</span></td><td>提出がない</td></tr>
+      <tr><td><span class="mark m-present">発表</span></td><td>その回の発表者。提出不要なので、スクリプトは書き換えない</td></tr>
+    </tbody>
+  </table>
+
+  <h3>細かいルール</h3>
+  <ul>
+    <li>どの回の提出かは、フォームの「輪読回」の先頭の日付で決めます。<code>10/13 チームインテリジェンス：序章＋第1部</code> なら 10/13 の回です。</li>
+    <li>同じ人が同じ回に何度か出したときは、最初の提出で判定します。期限内に出したあとで修正版を送っても ◯ のままです。</li>
+    <li>名前は全角/半角の違いと空白を無視して名簿と照合します（<code>漆原　裕士</code> と <code>漆原裕士</code> は同じ人）。</li>
+    <li>名簿は <code>集計</code> の A2 から下へ、空白セルまで。輪読回は B1 から右へ、日付が続くところまで。人数や回数が変わっても自動で追従します。</li>
+  </ul>
+
+  <div class="callout">
+    実行するたびに全部計算し直すので、提出のないマスに手で ◯ を入れても次の実行で「未」に戻ります。残したい例外は「免除」「欠席」のように別の言葉で書いてください。そのマスはそのまま残り、警告に出ます。
+  </div>
+
+  <h2>警告に出るもの</h2>
+  <p>次のものは集計に入れず、実行の最後に一覧で知らせます。</p>
+  <table>
+    <thead><tr><th>警告</th><th>よくある原因と直し方</th></tr></thead>
+    <tbody>
+      <tr><td>名前が名簿にない</td><td>フォームでの名前の書き間違い、名簿への追加漏れ。名簿の表記に合わせて回答シートの名前を直す</td></tr>
+      <tr><td>輪読回が読めない・見出しにない</td><td>回答の「輪読回」が空、または集計の見出しにない日付</td></tr>
+      <tr><td>想定外の値を残した</td><td>マスに ◯ / 遅延 / 未 / 発表 以外が入っている。意図したものならそのままでよい</td></tr>
+      <tr><td>名簿の重複</td><td>同じ人が A 列に二度いる</td></tr>
+      <tr><td>見出しの日付が前の回より前</td><td>年の入れ間違い（1月の回が前年になっているなど）。期限の判定がずれるので直す</td></tr>
+    </tbody>
+  </table>
+
+  <h2>導入</h2>
+  <ol>
+    <li>集計用のスプレッドシートで「拡張機能 › Apps Script」を開く</li>
+    <li>最初からある <code>コード.gs</code> の中身を消し、下のコードを貼って保存する</li>
+    <li>スプレッドシートを再読み込みすると、メニューに「輪読集計」が出る</li>
+    <li>初回だけ承認を求められるので許可する</li>
+    <li>「ファイル › 設定」のタイムゾーンが「(GMT+09:00) 東京」になっているか確かめる</li>
+  </ol>
+  <div class="codebox">
+    <button type="button" id="copy">コードをコピー</button>
+    <pre><code id="code">読み込み中…（読み込めない場合は <a href="Code.gs">Code.gs</a> を直接開いてください）</code></pre>
+  </div>
+
+  <h2>必要なシート</h2>
+  <table>
+    <thead><tr><th>シート</th><th>中身</th></tr></thead>
+    <tbody>
+      <tr><td><code>フォームの回答 1</code></td><td>フォームとつながった回答シート。見出しに「タイムスタンプ」「名前」「輪読回」が必要</td></tr>
+      <tr><td><code>集計</code></td><td>A1「氏名」、B1 から右に研究会の日付、A2 から下に名簿</td></tr>
+      <tr><td><code>輪読スケジュール</code></td><td>A 列に研究会の日付、B 列以降にその回の発表者</td></tr>
+    </tbody>
+  </table>
+
+  <h2>来学期に使い回すとき</h2>
+  <ol>
+    <li><code>集計</code> の1行目に研究会の日付を左から順に入れる。年まで正しく入れる</li>
+    <li><code>輪読スケジュール</code> を新しい発表者で書き換える</li>
+    <li>フォームの「輪読回」の選択肢を <code>M/D タイトル</code> の形で作り直す。設問タイトルは「輪読回」のまま</li>
+    <li>「名簿と発表者を反映」で名簿と「発表」を入れ、あとは毎週「提出状況を更新」</li>
+  </ol>
+  <p class="note">シート名・見出し名・期限（前日 18:00）は <code>Code.gs</code> 冒頭の <code>CONFIG</code> で変えられます。輪読回を I 列より右に増やしたときは、J〜O 列の集計式の範囲（<code>$B2:$I2</code>）を手で広げてください。</p>
+
+  <footer>
+    <a href="https://github.com/Lazyturtle0852/rindoku-shuukei">GitHub リポジトリ</a>
+  </footer>
+</main>
+<script>
+  const codeEl = document.getElementById('code');
+  const btn = document.getElementById('copy');
+  fetch('Code.gs')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then(t => { codeEl.textContent = t; })
+    .catch(() => {});
+  btn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(codeEl.textContent);
+      btn.textContent = 'コピーしました';
+    } catch (e) {
+      btn.textContent = 'コピーできませんでした';
+    }
+    setTimeout(() => { btn.textContent = 'コードをコピー'; }, 1800);
+  });
+</script>
+</body>
+</html>
