@@ -2,7 +2,7 @@
  * 輪読事前課題 提出状況の集計
  *
  * メニュー「輪読集計」から手動で実行する。
- *   - 提出状況を更新      : フォームの回答から ◯ / 遅延 / 未 を書き込む
+ *   - 提出状況を更新      : フォームの回答から ◯ / 遅延 / 未 / 無 を書き込む
  *   - 名簿と発表者を反映  : 輪読スケジュールから名簿の追加と「発表」の書き込みをする
  *
  * 学期が変わっても、シート名・見出し名が同じならコードを触る必要はない。
@@ -23,10 +23,14 @@ const CONFIG = {
   DEADLINE_DAYS_BEFORE: 1,
   DEADLINE_HOUR_JST: 18,
 
+  // 「今」の日時。null なら実行した時刻。デモで日時を固定するときだけ '2026-11-09T12:00:00+09:00' のように書く
+  NOW: null,
+
   MARK: {
     ON_TIME: '◯',
     LATE: '遅延',
-    NONE: '未',
+    MISSING: '未',     // 期限を過ぎても提出がない
+    NOT_YET: '無',     // まだ期限前で、提出もない
     PRESENTER: '発表',
   },
 };
@@ -114,7 +118,8 @@ function updateSubmissionStatus() {
   // 書き込み
   const range = summary.getRange(2, 2, layout.roster.length, layout.rounds.length);
   const values = range.getValues();
-  const overwritable = new Set([M.ON_TIME, M.LATE, M.NONE, '']);
+  const overwritable = new Set([M.ON_TIME, M.LATE, M.MISSING, M.NOT_YET, '']);
+  const now = CONFIG.NOW ? new Date(CONFIG.NOW) : new Date();
   let changed = 0;
 
   values.forEach((rowVals, p) => {
@@ -126,16 +131,18 @@ function updateSubmissionStatus() {
         return;
       }
       const t = firstSubmit[p][c];
-      const next = t === null ? M.NONE
-        : t.getTime() <= layout.rounds[c].deadline.getTime() ? M.ON_TIME
-        : M.LATE;
+      const deadline = layout.rounds[c].deadline.getTime();
+      const next = t !== null ? (t.getTime() <= deadline ? M.ON_TIME : M.LATE)
+        : now.getTime() > deadline ? M.MISSING
+        : M.NOT_YET;
       if (next !== current) changed++;
       rowVals[c] = next;
     });
   });
   range.setValues(values);
 
-  showResult_(`提出状況を更新しました（変更 ${changed} セル）`, warnings);
+  const nowNote = CONFIG.NOW ? `・基準日時 ${Utilities.formatDate(now, 'Asia/Tokyo', 'M/d HH:mm')} で固定中` : '';
+  showResult_(`提出状況を更新しました（変更 ${changed} セル${nowNote}）`, warnings);
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,7 +191,7 @@ function syncRosterAndPresenters() {
     }
     summary.getRange(last + 1, 1, toAdd.length, 1).setValues(toAdd.map(n => [n]));
     summary.getRange(last + 1, 2, toAdd.length, layout.rounds.length)
-      .setValues(toAdd.map(() => layout.rounds.map(() => M.NONE)));
+      .setValues(toAdd.map(() => layout.rounds.map(() => '')));
     layout = detectLayout_(summary, tz, []);
   }
 
@@ -194,7 +201,7 @@ function syncRosterAndPresenters() {
   layout.rounds.forEach((r, i) => { roundIndex[r.key] = i; });
   const range = summary.getRange(2, 2, layout.roster.length, layout.rounds.length);
   const values = range.getValues();
-  const overwritable = new Set([M.ON_TIME, M.LATE, M.NONE, M.PRESENTER, '']);
+  const overwritable = new Set([M.ON_TIME, M.LATE, M.MISSING, M.NOT_YET, M.PRESENTER, '']);
   let marked = 0;
 
   presenters.forEach(({ key, name }) => {
@@ -250,8 +257,9 @@ function detectLayout_(sheet, tz, warnings) {
   const rounds = [];
   if (lastCol >= 2) {
     const heads = sheet.getRange(1, 2, 1, lastCol - 1).getValues()[0];
-    for (const h of heads) {
-      if (!(h instanceof Date) || isNaN(h)) break;
+    for (const v of heads) {
+      const h = toDate_(v);
+      if (!h) break;
       const [y, m, d] = Utilities.formatDate(h, tz, 'yyyy-M-d').split('-').map(Number);
       rounds.push({
         key: `${m}/${d}`,
@@ -286,9 +294,22 @@ function normalizeName_(s) {
 
 /** 「10/13 チームインテリジェンス…」や日付セルから "10/13" を取り出す */
 function parseRoundKey_(v, tz) {
-  if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'M/d');
+  const d = toDate_(v);
+  if (d) return Utilities.formatDate(d, tz, 'M/d');
   const m = String(v).normalize('NFKC').match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
   return m ? `${Number(m[1])}/${Number(m[2])}` : null;
+}
+
+/**
+ * 日付セルを Date にする。表示形式が外れて数値（シリアル値 46308 など）になったセルも日付として読む。
+ * シリアル値はシートのタイムゾーンでの 0:00 を指すので、JST の 0:00 として扱う。
+ */
+function toDate_(v) {
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === 'number' && v > 40000 && v < 80000) {
+    return new Date(Date.UTC(1899, 11, 30) + v * 86400000 - 9 * 3600000);
+  }
+  return null;
 }
 
 function a1_(row, col) {

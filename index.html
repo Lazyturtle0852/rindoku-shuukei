@@ -18,6 +18,7 @@
     --late: #b45309;
     --none: #8a8f98;
     --present: #4b5fa8;
+    --miss: #b42318;
     --code-bg: #f3f1ec;
   }
   @media (prefers-color-scheme: dark) {
@@ -33,13 +34,14 @@
       --late: #f0a35a;
       --none: #8a919b;
       --present: #9fb0f0;
+      --miss: #f28b82;
       --code-bg: #23272c;
     }
   }
   :root[data-theme="dark"] {
     --bg: #15171a; --surface: #1d2024; --text: #e7e9ec; --muted: #9aa1ab; --line: #2e3238;
     --accent: #7cc4ad; --accent-soft: #1f302b; --ok: #7cc4ad; --late: #f0a35a; --none: #8a919b;
-    --present: #9fb0f0; --code-bg: #23272c;
+    --present: #9fb0f0; --miss: #f28b82; --code-bg: #23272c;
   }
   * { box-sizing: border-box; }
   body {
@@ -70,7 +72,7 @@
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 600; font-size: .85rem; }
   .mark { display: inline-block; min-width: 3em; text-align: center; padding: 0 8px; border-radius: 999px; font-weight: 600; font-size: .9rem; border: 1px solid currentColor; }
-  .m-ok { color: var(--ok); } .m-late { color: var(--late); } .m-none { color: var(--none); } .m-present { color: var(--present); }
+  .m-ok { color: var(--ok); } .m-late { color: var(--late); } .m-none { color: var(--none); } .m-present { color: var(--present); } .m-miss { color: var(--miss); }
   .timeline { position: relative; margin: 20px 0 8px; padding: 34px 0 0; }
   .bar { height: 10px; border-radius: 5px; display: flex; overflow: hidden; }
   .bar .ok { background: var(--ok); flex: 1.4; }
@@ -95,14 +97,14 @@
     <p>輪読事前課題フォームの提出状況を、スプレッドシートのメニューから一回で集計する</p>
   </header>
 
-  <p class="lead">Google フォームの回答がたまる <code>フォームの回答 1</code> シートを読み、<code>集計</code> シートの「人 × 輪読回」のマスを <span class="mark m-ok">◯</span> <span class="mark m-late">遅延</span> <span class="mark m-none">未</span> で埋めます。自動では動かず、押したときだけ集計します。</p>
+  <p class="lead">Google フォームの回答がたまる <code>フォームの回答 1</code> シートを読み、<code>集計</code> シートの「人 × 輪読回」のマスを <span class="mark m-ok">◯</span> <span class="mark m-late">遅延</span> <span class="mark m-miss">未</span> <span class="mark m-none">無</span> で埋めます。自動では動かず、押したときだけ集計します。</p>
 
   <h2>メニュー</h2>
   <p>スプレッドシートを開くと、上部に「輪読集計」メニューが出ます。</p>
   <div class="menu">
     <div class="card">
       <h3>提出状況を更新</h3>
-      <p>フォームの回答を読み、各マスを ◯ / 遅延 / 未 にする。毎週使うのはこれ。</p>
+      <p>フォームの回答を読み、各マスを ◯ / 遅延 / 未 / 無 にする。毎週使うのはこれ。</p>
     </div>
     <div class="card">
       <h3>名簿と発表者を反映</h3>
@@ -127,7 +129,8 @@
     <tbody>
       <tr><td><span class="mark m-ok">◯</span></td><td>期限までに提出がある（18:00:00 ちょうどは期限内）</td></tr>
       <tr><td><span class="mark m-late">遅延</span></td><td>提出はあるが、最初の提出が期限を過ぎている</td></tr>
-      <tr><td><span class="mark m-none">未</span></td><td>提出がない</td></tr>
+      <tr><td><span class="mark m-miss">未</span></td><td>期限を過ぎても提出がない</td></tr>
+      <tr><td><span class="mark m-none">無</span></td><td>まだ期限前で、提出もない（期限前に出していれば ◯）</td></tr>
       <tr><td><span class="mark m-present">発表</span></td><td>その回の発表者。提出不要なので、スクリプトは書き換えない</td></tr>
     </tbody>
   </table>
@@ -141,7 +144,7 @@
   </ul>
 
   <div class="callout">
-    実行するたびに全部計算し直すので、提出のないマスに手で ◯ を入れても次の実行で「未」に戻ります。残したい例外は「免除」「欠席」のように別の言葉で書いてください。そのマスはそのまま残り、警告に出ます。
+    実行するたびに全部計算し直すので、提出のないマスに手で ◯ を入れても次の実行で「未」か「無」に戻ります。残したい例外は「免除」「欠席」のように別の言葉で書いてください。そのマスはそのまま残り、警告に出ます。
   </div>
 
   <h2>警告に出るもの</h2>
@@ -151,7 +154,7 @@
     <tbody>
       <tr><td>名前が名簿にない</td><td>フォームでの名前の書き間違い、名簿への追加漏れ。名簿の表記に合わせて回答シートの名前を直す</td></tr>
       <tr><td>輪読回が読めない・見出しにない</td><td>回答の「輪読回」が空、または集計の見出しにない日付</td></tr>
-      <tr><td>想定外の値を残した</td><td>マスに ◯ / 遅延 / 未 / 発表 以外が入っている。意図したものならそのままでよい</td></tr>
+      <tr><td>想定外の値を残した</td><td>マスに ◯ / 遅延 / 未 / 無 / 発表 以外が入っている。意図したものならそのままでよい</td></tr>
       <tr><td>名簿の重複</td><td>同じ人が A 列に二度いる</td></tr>
       <tr><td>見出しの日付が前の回より前</td><td>年の入れ間違い（1月の回が前年になっているなど）。期限の判定がずれるので直す</td></tr>
     </tbody>
@@ -187,7 +190,7 @@
     <li>フォームの「輪読回」の選択肢を <code>M/D タイトル</code> の形で作り直す。設問タイトルは「輪読回」のまま</li>
     <li>「名簿と発表者を反映」で名簿と「発表」を入れ、あとは毎週「提出状況を更新」</li>
   </ol>
-  <p class="note">シート名・見出し名・期限（前日 18:00）は <code>Code.gs</code> 冒頭の <code>CONFIG</code> で変えられます。輪読回を I 列より右に増やしたときは、J〜O 列の集計式の範囲（<code>$B2:$I2</code>）を手で広げてください。</p>
+  <p class="note">シート名・見出し名・期限（前日 18:00）は <code>Code.gs</code> 冒頭の <code>CONFIG</code> で変えられます。デモで「今」を固定したいときは <code>CONFIG.NOW</code> に <code>'2026-11-09T12:00:00+09:00'</code> のように書きます（普段は <code>null</code>）。輪読回を I 列より右に増やしたときは、J〜O 列の集計式の範囲（<code>$B2:$I2</code>）を手で広げてください。</p>
 
   <footer>
     <a href="https://github.com/Lazyturtle0852/rindoku-shuukei">GitHub リポジトリ</a>
