@@ -4,6 +4,7 @@
  * メニュー「輪読集計」から手動で実行する。
  *   - 提出状況を更新      : フォームの回答から ◯ / 遅延 / 未 / - を書き込む
  *   - 名簿と発表者を反映  : 輪読スケジュールから名簿の追加と「発表」の書き込みをする
+ *     あわせて、日程ごとの回答シートがなければ作る（回答は数式で自動的に流れ込む）
  *
  * 学期が変わっても、シート名・見出し名が同じならコードを触る必要はない。
  * 名簿は 集計!A2 から下へ空白セルまで、輪読回は 集計!B1 から右へ日付が続く限りを自動で検出する。
@@ -18,6 +19,9 @@ const CONFIG = {
   HEADER_TIMESTAMP: 'タイムスタンプ',
   HEADER_NAME: '名前',
   HEADER_ROUND: '輪読回', // 値の先頭が「10/13 …」の形
+
+  // 回ごとのシートに出さない列
+  ROUND_SHEET_EXCLUDE: ['タイムスタンプ', 'メールアドレス', '輪読回'],
 
   // 期限: 研究会の日付の N 日前の HH:00 (JST)。ちょうどは期限内
   DEADLINE_DAYS_BEFORE: 1,
@@ -225,8 +229,52 @@ function syncRosterAndPresenters() {
   });
   marked -= writeValues_(range, values, warnings);
 
+  const createdSheets = ensureRoundSheets_(ss, tz, schedule, warnings);
   const head = toAdd.length ? `名簿に ${toAdd.length} 人追加し、` : '';
-  showResult_(`${head}「発表」を ${marked} セル新たに書き込みました`, warnings);
+  showResult_(`${head}「発表」を ${marked} セル新たに書き込み、回ごとのシートを ${createdSheets} 枚作成しました`, warnings);
+}
+
+/**
+ * スケジュールの各回について、フォームの回答を絞り込んで表示するシートを作る。
+ * 中身は数式なので、回答は自動で流れ込む。既にあるシートには触れない。
+ * 戻り値は作成した枚数。
+ */
+function ensureRoundSheets_(ss, tz, schedule, warnings) {
+  const responses = getSheet_(ss, CONFIG.RESPONSE_SHEET);
+  const head = responses.getRange(1, 1, 1, responses.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const roundCol = head.indexOf(CONFIG.HEADER_ROUND) + 1;
+  if (roundCol === 0) {
+    warnings.push(`「${CONFIG.RESPONSE_SHEET}」に見出し「${CONFIG.HEADER_ROUND}」がないため、回ごとのシートを作れませんでした`);
+    return 0;
+  }
+  const letter = c => a1_(1, c).replace(/\d+$/, '');
+  const columns = [];
+  head.forEach((h, i) => { if (h && !CONFIG.ROUND_SHEET_EXCLUDE.includes(h)) columns.push(i + 1); });
+  const select = columns.map(letter).join(',');
+  const roundL = letter(roundCol);
+  const lastL = letter(head.length);
+  const src = `'${CONFIG.RESPONSE_SHEET}'`;
+  const n = columns.length;
+
+  const keys = Array.from(new Set(schedule.map(row => parseRoundKey_(row[0], tz)).filter(Boolean)));
+  const active = ss.getActiveSheet();
+  let created = 0;
+  keys.forEach(key => {
+    if (ss.getSheetByName(key)) return;
+    const pattern = `^${key}([^0-9].*)?`;
+    const sh = ss.insertSheet(key, ss.getNumSheets());
+    sh.getRange(1, 1).setFormula(`=IFERROR(INDEX(FILTER(${src}!${roundL}:${roundL}, REGEXMATCH(${src}!${roundL}:${roundL}, "${pattern}")), 1), "${key}")`);
+    sh.getRange(2, 1).setFormula(`=QUERY(${src}!A:${lastL}, "select ${select} where ${roundL} matches '${pattern}'", 1)`);
+    sh.setFrozenRows(2);
+    sh.setColumnWidth(1, 110);
+    sh.setColumnWidths(2, n - 1, 360);
+    sh.getRange(2, 1, sh.getMaxRows() - 1, n).setWrap(true).setVerticalAlignment('top');
+    sh.getRange(1, 1).setFontWeight('bold');
+    sh.getRange(2, 1, 1, n).setFontWeight('bold').setBackground('#f1f3f4');
+    created++;
+  });
+  ss.setActiveSheet(active);
+  return created;
 }
 
 /* ------------------------------------------------------------------ */
